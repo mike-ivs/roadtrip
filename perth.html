@@ -15,6 +15,8 @@
     <script src="https://igor-vladyka.github.io/leaflet.motion/dist/leaflet.motion.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chroma-js/2.4.2/chroma.min.js" referrerpolicy="no-referrer"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js" integrity="sha512-dfX5uYVXzyU8+KHqj8bjo7UkOdg18PaOtpa48djpNbZHwExddghZ+ZmzWT06R5v6NSk3ZUfsH6FNEDepLx9hPQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-extra-markers@1.2.2/dist/css/leaflet.extra-markers.min.css">
+    <script src="https://unpkg.com/leaflet-extra-markers@1.2.2/dist/js/leaflet.extra-markers.min.js"></script>
 
     <style>
         html,
@@ -33,40 +35,115 @@
     <div id="map"></div>
     <script>
 
-        const map = L.map('map')
-
-        const tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        var esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             maxZoom: 19,
-            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        }).addTo(map);
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        });
 
-        Papa.parse("perth.csv", {
-            download: true,
-            header: true,
-            dynamicTyping: true,
-            complete: function(result) {
-                var data = result.data;
-                console.log(data)
-                var cmap = chroma.scale("Dark2").colors(data.length)
-                var route = []
-                var bounds = L.latLngBounds()
-                for (var i = 0; i < data.length - 1; i++) {
-                    var origin = data[i];
-                    var dest = data[i + 1];
-                    
-                    L.marker([origin.lat, origin.lng]).addTo(map).bindTooltip(`<b>${origin.name}<b>`, { permanent: false });
-                    var polyline = L.motion.polyline([[origin.lat, origin.lng], [dest.lat, dest.lng]], { color: cmap[i] }, { speed: 1e7 })
-                    route.push(polyline)
-                    bounds.extend([origin.lat, origin.lng])
+        var osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© OpenStreetMap'
+        });
+
+        var map = L.map('map', {
+            layers: [esri]
+        });
+
+        var baseMaps = {
+            "Satellite map": esri,
+            "Street map": osm
+        };
+
+        var bigMarkerGroup = new L.LayerGroup()//.addTo(map);
+        var littleMarkerGroup = new L.LayerGroup()//.addTo(map);
+
+        var markerLayers = {
+            "Blog posts": bigMarkerGroup,
+            "Day by day": littleMarkerGroup
+        };
+
+        var layerControl = L.control.layers(baseMaps,markerLayers).addTo(map);
+        
+
+        fetch("trip.geojson").then(response => response.json()).then(data => {
+            console.log(data)
+            var cmap = chroma.scale(['navy', 'yellow']).mode('lch').colors(data.features.length)
+            var route = []
+
+            for (var i in data.features) {
+                var f = data.features[i];
+                var p = f.properties;
+                let f1 = data.features[i];
+                if (parseInt(i) < data.features.length -1) { f1 = data.features[(parseInt(i) + 1).toString()]};
+
+                var dest = f1.properties;
+                // var bounds = L.latLngBounds()
+
+                // Creates a red marker with the coffee icon
+                var redMarker = L.ExtraMarkers.icon({
+                    icon:  'fa-bus', 
+                    markerColor: cmap[i],
+                    shape: 'circle',
+                    prefix: 'fa', // Font Awesome prefix
+                    svg:true,
+                });
+                if (p.marker){
+                    //imgurl = "https://mike-ivs.github.io/assets/img/blog/20250708/s/4.jpg"
+                    imgurl = p.imglink
+                    marker = L.marker(
+                        [p.lat, p.lng],
+                        {icon: redMarker, blog_url:p.bloglink}
+                    ).addTo(bigMarkerGroup).bindTooltip(
+                        `${p.date}` + '<br>' + `<b>${p.name}<b>` + '<br>' + "<img src='" + imgurl + "'/>"
+                            , { permanent: false });
+
+                    marker.on('mouseover',function(ev) {
+                    marker.openPopup();
+                    });
+
+                    marker.on('click', onClick);
+                    function onClick(e) {
+                            //console.log(this.options.win_url);
+                            window.open(this.options.blog_url);
+                        }
                 }
-                console.log(route)
-                var seq = L.motion.seq(route).addTo(map)
 
-                setTimeout(function () {
-                    seq.motionStart();
-                }, 1000);
-                map.fitBounds(bounds);
+                if (p.date){
+                    marker = L.circleMarker(
+                        [p.lat, p.lng],
+                        {radius: 5,color:"#a1fc6d",fill:true, fillOpacity:0.5, blog_url:p.bloglink}
+                    ).addTo(littleMarkerGroup).bindTooltip(`${p.date}`, { permanent: false });
+
+                    marker.on('mouseover',function(ev) {
+                    marker.openPopup();
+                    });
+
+                    marker.on('click', onClick);
+                    function onClick(e) {
+                            //console.log(this.options.win_url);
+                            window.open(this.options.blog_url);
+                        }
+                }
+
+                if (p.drove2 || p.railed2){
+                    const coordinates = f.geometry.coordinates.map(coord => [coord[1], coord[0]]); // Swap to [lat, lng]
+                    var polyline = L.motion.polyline(coordinates, { color: cmap[i] }, { speed: 0.5e7 })
+                } else {
+                    var polyline = L.motion.polyline([[p.lat, p.lng], [dest.lat, dest.lng]], { color: cmap[i] }, { speed: 0.5e7 })
+                }
+                route.push(polyline)
+                
+
             }
+
+            console.log(route)
+            var seq = L.motion.seq(route).addTo(map)
+
+            setTimeout(function () {
+                seq.motionStart();
+            }, 1000);
+            map.fitBounds(L.geoJSON(data).getBounds());
+
         });
 
     </script>
