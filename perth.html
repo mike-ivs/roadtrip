@@ -112,7 +112,7 @@
                     marker = L.circleMarker(
                         [p.lat, p.lng],
                         {radius: 5,color:"#a1fc6d",fill:true, fillOpacity:0.5, blog_url:p.bloglink}
-                    ).addTo(littleMarkerGroup).bindTooltip(`${p.date}`, { permanent: false });
+                    ).addTo(littleMarkerGroup).bindTooltip(`${p.date}` + '<br>' + `<b>${p.name}<b>`, { permanent: false });
 
                     marker.on('mouseover',function(ev) {
                     marker.openPopup();
