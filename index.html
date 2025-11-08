@@ -64,6 +64,11 @@
 
         var layerControl = L.control.layers(baseMaps,markerLayers).addTo(map);
         
+        var popup = L.popup()
+            .setLatLng([-11.4118, 167.6049])
+            .setContent('<p>Use the top-right tools to<br />view blog posts and daily stops</p>')
+            .openOn(map);
+
 
         fetch("trip.geojson").then(response => response.json()).then(data => {
             console.log(data)
@@ -143,7 +148,7 @@
                 seq.motionStart();
             }, 1000);
             map.fitBounds(L.geoJSON(data).getBounds());
-
+            map.setView([-21.4118, 147.6049], 2.5);;
         });
 
     </script>
